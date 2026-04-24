@@ -79,5 +79,15 @@
       overlays.default = overlay;
       homeManagerModules.openclaw = import ./nix/modules/home-manager/openclaw.nix;
       darwinModules.openclaw = import ./nix/modules/darwin/openclaw.nix;
+      templates = {
+        agent-first = {
+          path = ./templates/agent-first;
+          description = "Agent-first OpenClaw bootstrap template";
+        };
+        sourceos-control-node = {
+          path = ./templates/sourceos-control-node;
+          description = "SourceOS local-first operator/control-node template built on nix-openclaw";
+        };
+      };
     };
 }

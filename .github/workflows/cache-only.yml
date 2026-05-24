@@ -127,6 +127,6 @@ jobs:
               exit 1
             fi
 
-            echo "Cache still missing (${#missing[@)}. Retrying in 30s..."
+            echo "Cache still missing (${#missing[@]}). Retrying in 30s..."
             sleep 30
           done

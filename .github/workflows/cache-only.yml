@@ -31,28 +31,60 @@ jobs:
             const intervalMs = 30_000
             const deadline = Date.now() + waitMinutes * 60 * 1000
             const targetSha = process.env.TARGET_SHA || context.sha
+            const advisory = context.eventName === 'pull_request'
+            let transientErrors = 0
 
             while (true) {
-              const { data } = await github.rest.checks.listForRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: targetSha,
-              })
+              let data
+              try {
+                const response = await github.rest.checks.listForRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: targetSha,
+                })
+                data = response.data
+              } catch (error) {
+                transientErrors += 1
+                core.warning(`Transient check polling error ${transientErrors}: ${error.status || 'unknown'} ${error.message || error}`)
+                if (Date.now() > deadline) {
+                  const message = `Timed out waiting for Garnix checks after ${transientErrors} transient polling errors`
+                  if (advisory) {
+                    core.warning(`${message}; pull-request cache availability is advisory`)
+                    break
+                  }
+                  core.setFailed(message)
+                  break
+                }
+                await new Promise((resolve) => setTimeout(resolve, intervalMs))
+                continue
+              }
+
               const garnix = data.check_runs.find((run) => run.name === 'All Garnix checks')
               if (garnix && garnix.status === 'completed') {
                 if (garnix.conclusion !== 'success') {
-                  core.setFailed(`Garnix checks not successful: ${garnix.conclusion}`)
+                  const message = `Garnix checks not successful: ${garnix.conclusion}`
+                  if (advisory) {
+                    core.warning(`${message}; pull-request cache availability is advisory`)
+                  } else {
+                    core.setFailed(message)
+                  }
                 }
                 break
               }
               if (Date.now() > deadline) {
-                core.setFailed('Timed out waiting for Garnix checks')
+                const message = 'Timed out waiting for Garnix checks'
+                if (advisory) {
+                  core.warning(`${message}; pull-request cache availability is advisory`)
+                } else {
+                  core.setFailed(message)
+                }
                 break
               }
               await new Promise((resolve) => setTimeout(resolve, intervalMs))
             }
 
       - name: Verify cache.garnix.io has required outputs
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           STORE_URL: https://cache.garnix.io
           WAIT_MINUTES: 30
